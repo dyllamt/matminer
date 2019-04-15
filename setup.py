@@ -12,7 +12,8 @@ extras_dict = {'mpds': ['jmespath>=0.9.3', 'ujson>=1.35', 'httplib2>=0.10.3',
                         'ase>=3.14.1'],
                'mdf': ['mdf_forge==0.6.1'],
                'aflow': ['aflow==0.0.9'],
-               'citrine': ['citrination-client==4.0.1']}
+               'citrine': ['citrination-client==4.0.1'],
+               'dscribe': ['dscribe==0.1.8']}
 extras_list = []
 for val in extras_dict.values():
     extras_list.extend(val)
@@ -21,7 +22,7 @@ for val in extras_dict.values():
 if __name__ == "__main__":
     setup(
         name='matminer',
-        version='0.5.1',
+        version='0.5.5',
         description='matminer is a library that contains tools for data '
                     'mining in Materials Science',
         long_description=open(os.path.join(module_dir, 'README.md')).read(),
