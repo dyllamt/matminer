@@ -6,6 +6,9 @@ from pymatgen import Spin
 from pymatgen.electronic_structure.dos import CompleteDos, FermiDos
 
 
+_k = 8.6173e-5  # Boltzmann constant, eV/K
+
+
 class SiteDOS(BaseFeaturizer):
     """
     report the fractional s/p/d/f dos for a particular site. a CompleteDos
@@ -16,11 +19,10 @@ class SiteDOS(BaseFeaturizer):
     below the fermi level, respectively.
 
     Args:
-        decay_length (float in eV):
-            the dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. three times the
-            decay_length corresponds to 10% sampling strength. there is a hard
-            cutoff at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             number of points to sample dos
         gaussian_smear (float in eV):
@@ -36,9 +38,9 @@ class SiteDOS(BaseFeaturizer):
             this is useful information when comparing the relative
             contributions from multiples sites
     """
-    def __init__(self, decay_length=0.1, sampling_resolution=100,
+    def __init__(self, fermi_temperature=500, sampling_resolution=100,
                  gaussian_smear=0.05):
-        self.decay_length = decay_length
+        self.fermi_temperature = fermi_temperature
         self.sampling_resolution = sampling_resolution
         self.gaussian_smear = gaussian_smear
 
@@ -56,7 +58,7 @@ class SiteDOS(BaseFeaturizer):
         if dos.structure is None:
             raise ValueError('The input dos must contain the structure.')
 
-        orbscores = get_site_dos_scores(dos, idx, self.decay_length,
+        orbscores = get_site_dos_scores(dos, idx, self.fermi_temperature,
                                         self.sampling_resolution,
                                         self.gaussian_smear)
 
@@ -89,11 +91,10 @@ class DOSFeaturizer(BaseFeaturizer):
             Sets the number of top contributors to the DOS that are
             returned as features. (i.e. contributors=1 will only return the
             main cb and main vb orbital)
-        decay_length (float in eV):
-            The dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. Three times the decay
-            length corresponds to 10% sampling strength. There is a hard cutoff
-            at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             Number of points to sample DOS
         gaussian_smear (float in eV):
@@ -108,10 +109,10 @@ class DOSFeaturizer(BaseFeaturizer):
             characterized by an entropy score (x ln x). the hybridization score
             is larger for a greater number of significant contributors
     """
-    def __init__(self, contributors=1, decay_length=0.1,
+    def __init__(self, contributors=1, fermi_temperature=500,
                  sampling_resolution=100, gaussian_smear=0.05):
         self.contributors = contributors
-        self.decay_length = decay_length
+        self.fermi_temperature = fermi_temperature
         self.sampling_resolution = sampling_resolution
         self.gaussian_smear = gaussian_smear
 
@@ -128,7 +129,7 @@ class DOSFeaturizer(BaseFeaturizer):
         if dos.structure is None:
             raise ValueError('The input dos must contain the structure.')
 
-        orbscores = get_cbm_vbm_scores(dos, self.decay_length,
+        orbscores = get_cbm_vbm_scores(dos, self.fermi_temperature,
                                        self.sampling_resolution,
                                        self.gaussian_smear)
 
@@ -279,11 +280,10 @@ class Hybridization(BaseFeaturizer):
     quantify s/p/d/f orbital character and their hybridizations at band edges
 
     Args:
-        decay_length (float in eV):
-            The dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. Three times the decay
-            length corresponds to 10% sampling strength. There is a hard cutoff
-            at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             Number of points to sample DOS
         gaussian_smear (float in eV):
@@ -300,33 +300,33 @@ class Hybridization(BaseFeaturizer):
                 maximum hybridization (i.e. vbm_s==0.5, vbm_p==0.5)
             cbm_Si_p (float): p-orbital character of Si
     """
-    def __init__(self, decay_length=0.1, sampling_resolution=100,
+    def __init__(self, fermi_temperature=500, sampling_resolution=100,
                  gaussian_smear=0.05, species=None):
-        self.decay_length = decay_length
+        self.fermi_temperature = fermi_temperature
         self.sampling_resolution = sampling_resolution
         self.gaussian_smear = gaussian_smear
         self.species = species or []
 
-    def featurize(self, dos, decay_length=None):
+    def featurize(self, dos, fermi_temperature=None):
         """
         takes in the density of state and return the orbitals contributions
         and hybridizations.
 
         Args:
             dos (pymatgen CompleteDos): note that dos.structure is required
-            decay_length (float or None): if set, it overrides the instance
-                variable self.decay_length.
+            fermi_temperature (float or None): if set, it overrides the
+                instance attribute self.fermi_temperature.
 
         Returns ([float]): features, see class doc for more info
         """
-        decay_length = decay_length or self.decay_length
+        fermi_temperature = fermi_temperature or self.fermi_temperature
         if isinstance(dos, dict):
             dos = CompleteDos.from_dict(dos)
         if dos.structure is None:
             raise ValueError('The input dos must contain the structure.')
 
         orbscores = get_cbm_vbm_scores(dos,
-                                       decay_length,
+                                       fermi_temperature,
                                        self.sampling_resolution,
                                        self.gaussian_smear)
         feat = OrderedDict()
@@ -388,19 +388,18 @@ class DosAsymmetry(BaseFeaturizer):
     metals and semi-metals.
 
     Args:
-        decay_length (float in eV):
-            The dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. Three times the decay
-            length corresponds to 10% sampling strength. There is a hard cutoff
-            at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             Number of points to sample DOS
         gaussian_smear (float in eV):
             Gaussian smearing (sigma) around each sampled point in the DOS
     """
-    def __init__(self, decay_length=0.5, sampling_resolution=100,
+    def __init__(self, fermi_temperature=500, sampling_resolution=100,
                  gaussian_smear=0.05):
-        self.decay_length = decay_length
+        self.fermi_temperature = fermi_temperature
         self.sampling_resolution = sampling_resolution
         self.gaussian_smear = gaussian_smear
 
@@ -424,21 +423,25 @@ class DosAsymmetry(BaseFeaturizer):
         # determines energy range to sample
         energies = [e for e in dos.energies]
         vbm_space = np.linspace(dos.efermi,
-                                dos.efermi - (5. * self.decay_length),
+                                dos.efermi -
+                                (5. * _k * self.fermi_temperature),
                                 num=self.sampling_resolution)
         cbm_space = np.linspace(dos.efermi,
-                                dos.efermi + (5. * self.decay_length),
+                                dos.efermi +
+                                (5. * _k * self.fermi_temperature),
                                 num=self.sampling_resolution)
 
         # accumulates dos score over energy ranges
         vbm_score = 0
         for e in vbm_space:
-            vbm_score += (np.interp(e, energies, dos_total) *
-                          np.exp(-(dos.efermi - e) * self.decay_length))
+            vbm_score += (np.interp(e, energies, dos_total) /
+                          (np.exp((dos.efermi - e) /
+                                  _k / self.fermi_temperature)) + 1.)
         cbm_score = 0
         for e in cbm_space:
-            cbm_score += (np.interp(e, energies, dos_total) *
-                          np.exp(-(e - dos.efermi) * self.decay_length))
+            cbm_score += (np.interp(e, energies, dos_total) /
+                          (np.exp((e - dos.efermi) /
+                                  _k / self.fermi_temperature)) + 1.)
 
         return np.log(cbm_score / vbm_score)
 
@@ -451,22 +454,22 @@ class DosAsymmetry(BaseFeaturizer):
         return ['Maxwell Dylla']
 
 
-def get_cbm_vbm_scores(dos, decay_length, sampling_resolution, gaussian_smear):
+def get_cbm_vbm_scores(dos, fermi_temperature, sampling_resolution,
+                       gaussian_smear):
     """
     Quantifies the contribution of all atomic orbitals (s/p/d/f) from all
     crystal sites to the conduction band minimum (CBM) and the valence band
-    maximum (VBM). An exponential decay function is used to sample the DOS.
-    An example use may be sorting the output based on cbm_score or vbm_score.
+    maximum (VBM). A Fermi-Dirac function is used to sample the DOS. An
+    example use may be sorting the output based on cbm_score or vbm_score.
 
     Args:
         dos (pymatgen CompleteDos or their dict):
             The density of states to featurize. Must be a complete DOS,
             (i.e. contains PDOS and structure, in addition to total DOS)
-        decay_length (float in eV):
-            The dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. Three times the decay
-            length corresponds to 10% sampling strength. There is a hard cutoff
-            at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             Number of points to sample DOS
         gaussian_smear (float in eV):
@@ -499,17 +502,23 @@ def get_cbm_vbm_scores(dos, decay_length, sampling_resolution, gaussian_smear):
                 else smear_dos[Spin.up]
             dos_total = [sum(id) for id in zip(dos_up, dos_down)]
             vbm_score = 0
-            vbm_space = np.linspace(vbm, vbm - (5. * decay_length),
+            vbm_space = np.linspace(vbm,
+                                    vbm -
+                                    (5. * _k * fermi_temperature),
                                     num=sampling_resolution)
             for e in vbm_space:
-                vbm_score += (np.interp(e, energies, dos_total) *
-                              np.exp(-(vbm - e) * decay_length))
+                vbm_score += (np.interp(e, energies, dos_total) /
+                              (np.exp((vbm - e) /
+                                      _k / fermi_temperature)) + 1.)
             cbm_score = 0
-            cbm_space = np.linspace(cbm, cbm + (5. * decay_length),
+            cbm_space = np.linspace(cbm,
+                                    cbm +
+                                    (5. * _k * fermi_temperature),
                                     num=sampling_resolution)
             for e in cbm_space:
-                cbm_score += (np.interp(e, energies, dos_total) *
-                              np.exp(-(e - cbm) * decay_length))
+                cbm_score += (np.interp(e, energies, dos_total) /
+                              (np.exp((e - cbm) /
+                                      _k / fermi_temperature)) + 1.)
 
             # add orbital scores to list
             orbital_score = {
@@ -531,12 +540,12 @@ def get_cbm_vbm_scores(dos, decay_length, sampling_resolution, gaussian_smear):
     return orbital_scores
 
 
-def get_site_dos_scores(dos, idx, decay_length, sampling_resolution,
+def get_site_dos_scores(dos, idx, fermi_temperature, sampling_resolution,
                         gaussian_smear):
     """
     Quantifies the contribution of all atomic orbitals (s/p/d/f) from a
     particular crystal site to the conduction band minimum (CBM) and the
-    valence band maximum (VBM). An exponential decay function is used to sample
+    valence band maximum (VBM). A Fermi-Dirac function is used to sample
     the DOS. if the dos is a metal, then CBM and VBM indicate the orbital
     scores above and below the fermi energy, respectively.
 
@@ -544,11 +553,10 @@ def get_site_dos_scores(dos, idx, decay_length, sampling_resolution,
         dos (pymatgen CompleteDos or their dict):
             The density of states to featurize. Must be a complete DOS,
             (i.e. contains PDOS and structure, in addition to total DOS)
-        decay_length (float in eV):
-            The dos is sampled by an exponential decay function. this parameter
-            sets the decay length of the exponential. Three times the decay
-            length corresponds to 10% sampling strength. There is a hard cutoff
-            at five times the decay length (1% sampling strength)
+        fermi_temperature (float in K):
+            the dos is sampled by a Fermi-Dirac distribution function. this
+            parameter sets the width of the sampling function. there is a hard
+            sampling cutoff at 5kT (~1% sampling strength)
         sampling_resolution (int):
             Number of points to sample DOS
         gaussian_smear (float in eV):
@@ -581,20 +589,26 @@ def get_site_dos_scores(dos, idx, decay_length, sampling_resolution,
 
         # determine energy range to sample
         energies = [e for e in proj[orb].energies]
-        vbm_space = np.linspace(vbm, vbm - (5. * decay_length),
+        vbm_space = np.linspace(vbm,
+                                vbm -
+                                (5. * _k * fermi_temperature),
                                 num=sampling_resolution)
-        cbm_space = np.linspace(cbm, cbm + (5. * decay_length),
+        cbm_space = np.linspace(cbm,
+                                cbm +
+                                (5. * _k * fermi_temperature),
                                 num=sampling_resolution)
 
         # accumulate dos score over energy range
         vbm_score = 0
         for e in vbm_space:
-            vbm_score += (np.interp(e, energies, dos_total) *
-                          np.exp(-(vbm - e) * decay_length))
+            vbm_score += (np.interp(e, energies, dos_total) /
+                          (np.exp((vbm - e) /
+                                  _k / fermi_temperature)) + 1.)
         cbm_score = 0
         for e in cbm_space:
-            cbm_score += (np.interp(e, energies, dos_total) *
-                          np.exp(-(e - cbm) * decay_length))
+            cbm_score += (np.interp(e, energies, dos_total) /
+                          (np.exp((e - cbm) /
+                                  _k / fermi_temperature)) + 1.)
         orbital_scores[str(orb)] = {'cbm': cbm_score, 'vbm': vbm_score}
 
     # ensure that f-orbitals are represented as zero contribution if none
